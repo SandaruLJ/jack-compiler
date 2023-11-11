@@ -38,7 +38,14 @@ class Tokenizer:
         self.current_token = ''
 
         while char := self.file.read(1):
-            #ignore whitespace
+            # handle string constants
+            if self.current_token and self.current_token.startswith('"'):
+                self.current_token += char
+                if char == '"':
+                    return True
+                continue
+
+            # ignore whitespace
             if char in (' ', '\n', '\t'):
                 if self.current_token:
                     return True
