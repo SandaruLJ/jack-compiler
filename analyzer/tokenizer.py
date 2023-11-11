@@ -4,7 +4,7 @@ Classes:
     Tokenizer
 """
 
-from constants import symbols
+from constants import keywords, symbols, TokenType
 
 
 class Tokenizer:
@@ -22,6 +22,7 @@ class Tokenizer:
 
     Methods:
         advance() -> bool
+        token_type() -> str
     """
 
     def __init__(self, filename):
@@ -71,3 +72,15 @@ class Tokenizer:
             self.current_token += char
 
         return False
+
+    def token_type(self):
+        """Return the type of the current token."""
+        if self.current_token.startswith('"'):
+            return TokenType.STRING_CONST
+        if self.current_token in keywords:
+            return TokenType.KEYWORD
+        if self.current_token in symbols:
+            return TokenType.SYMBOL
+        if self.current_token[0].isdigit():
+            return TokenType.INT_CONST
+        return TokenType.IDENTIFIER
