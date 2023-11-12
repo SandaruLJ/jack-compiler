@@ -22,7 +22,8 @@ class Tokenizer:
 
     Methods:
         advance() -> bool
-        token_type() -> str
+        token_type() -> strz
+        get_token() -> str
     """
 
     def __init__(self, filename):
@@ -84,3 +85,11 @@ class Tokenizer:
         if self.current_token[0].isdigit():
             return TokenType.INT_CONST
         return TokenType.IDENTIFIER
+
+    def get_token(self):
+        """Return the current token."""
+        if self.token_type() == TokenType.STRING_CONST:
+            return self.current_token.strip('"')
+        if self.token_type() == TokenType.KEYWORD:
+            return keywords[self.current_token]
+        return self.current_token
