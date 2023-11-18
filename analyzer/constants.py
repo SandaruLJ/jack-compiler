@@ -40,6 +40,14 @@ class KeywordType:
     THIS = 'THIS'
 
 
+class TerminalElement:
+    KEYWORD = 'keyword'
+    SYMBOL = 'symbol'
+    INTEGER_CONSTANT = 'integerConstant'
+    STRING_CONSTANT = 'stringConstant'
+    IDENTIFIER = 'identifier'
+
+
 keywords = {
     'class': KeywordType.CLASS,
     'constructor': KeywordType.CONSTRUCTOR,
