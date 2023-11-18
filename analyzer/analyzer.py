@@ -5,7 +5,6 @@ import sys
 
 from tokenizer import Tokenizer
 from compilation_engine import CompilationEngine
-from constants import TerminalElement
 
 
 SOURCE_EXT = 'jack'
@@ -44,25 +43,10 @@ def main():
         # create tokenizer instance for each source file
         tokenizer = Tokenizer(source_file)
 
-        # write tokenized output
-        with open(f'{filename}T.{TARGET_EXT}', 'w') as output:
-            output.write('<tokens>\n')
-            
-            while tokenizer.advance():
-                token_type = getattr(TerminalElement, tokenizer.token_type())
-                token = tokenizer.current_token
-                
-                if token == '<':
-                    token = '&lt;'
-                elif token == '>':
-                    token = '&gt;'
-                elif token == '&':
-                    token = '&amp;'
-                
-                output.write(f'<{token_type}> {token} </{token_type}>\n')
-            
-            output.write('</tokens>\n')
-            output.close()
+        # compile tokens
+        if tokenizer.advance():
+            compilation_engine = CompilationEngine(tokenizer, f'{filename}.{TARGET_EXT}')
+            compilation_engine.compile_class()
 
 
 def _parse_filename(file):
