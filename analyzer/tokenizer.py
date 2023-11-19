@@ -53,9 +53,11 @@ class Tokenizer:
                     return True
                 continue
 
-            # ignore comments
+            # look ahead next character
             next_char = self.file.read(1)
             self.file.seek(self.file.tell() - 1)  # restore to current position
+
+            # ignore comments
             if f'{char}{next_char}'  in ('//', '/*'):
                 if self.current_token:
                     return True
@@ -64,10 +66,10 @@ class Tokenizer:
 
             # check for symbols
             if char in symbols:
-                if self.current_token:
-                    self.file.seek(self.file.tell() - 1)
-                    return True
                 self.current_token = char
+                return True
+            elif next_char in symbols:
+                self.current_token += char
                 return True
 
             self.current_token += char
