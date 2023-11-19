@@ -29,6 +29,7 @@ class CompilationEngine:
     Methods:
         compile_class() -> None
         compile_class_var_dec() -> None
+        compile_subroutine() -> None
     """
 
     def __init__(self, tokenizer, filename):
@@ -58,20 +59,24 @@ class CompilationEngine:
     def compile_class(self):
         """Compile a complete class"""
         self.output.write('<class>\n')
+
         self._eat('class')
         self._eat(self.input.current_token)  # className
         self._eat('{')
-        
+
         while self.input.current_token in ('static', 'field'):
             self.compile_class_var_dec()
-        self.compile_subroutine()
+        while self.input.current_token in ('constructor', 'function', 'method'):
+            self.compile_subroutine()
+
         self._eat('}')
+
         self.output.write('</class>\n')
 
     def compile_class_var_dec(self):
-        """Compiles a static or field variable declaration"""
+        """Compile a static or field variable declaration"""
         self.output.write('<classVarDec>\n')
-        
+
         self._eat(self.input.current_token)  # 'static'|'field'
         self._eat(self.input.current_token)  # type
         self._eat(self.input.current_token)  # varName
@@ -86,4 +91,21 @@ class CompilationEngine:
         self.output.write('</classVarDec>\n')
 
     def compile_subroutine(self):
+        """Compile a complete method, function, or constructor"""
+        self.output.write('<subroutineDec>\n')
+
+        self._eat(self.input.current_token)  # 'constructor'|'function'|'method'
+        self._eat(self.input.current_token)  # 'void'|type
+        self._eat(self.input.current_token)  # subroutineName
+        self._eat('(')
+        self.compile_parameter_list()
+        self._eat(')')
+        self.compile_subroutine_body()
+
+        self.output.write('</subroutineDec>\n')
+
+    def compile_parameter_list(self):
+        pass
+
+    def compile_subroutine_body(self):
         pass
