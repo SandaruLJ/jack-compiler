@@ -30,6 +30,7 @@ class CompilationEngine:
         compile_class() -> None
         compile_class_var_dec() -> None
         compile_subroutine() -> None
+        compile_parameter_list() -> None
     """
 
     def __init__(self, tokenizer, filename):
@@ -81,7 +82,7 @@ class CompilationEngine:
         self._eat(self.input.current_token)  # type
         self._eat(self.input.current_token)  # varName
 
-        # if a comma is present, that means there are more variable names
+        # if a comma is present, that means there are more variables
         while self.input.current_token == ',':
             self._eat(',')
             self._eat(self.input.current_token)  # varName
@@ -105,7 +106,22 @@ class CompilationEngine:
         self.output.write('</subroutineDec>\n')
 
     def compile_parameter_list(self):
-        pass
+        """Compile a (possibly empty) parameter list"""
+        self.output.write('<parameterList>\n')
+
+        if self.input.current_token == ')':
+            return
+
+        self._eat(self.input.current_token)  # type
+        self._eat(self.input.current_token)  # varName
+
+        # the presence of a comma means that there are more parameters
+        while self.input.current_token == ',':
+            self._eat(',')
+            self._eat(self.input.current_token)  # type
+            self._eat(self.input.current_token)  # varName
+
+        self.output.write('</parameterList>\n')
 
     def compile_subroutine_body(self):
         pass
