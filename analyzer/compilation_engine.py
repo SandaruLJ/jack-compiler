@@ -110,17 +110,15 @@ class CompilationEngine:
         """Compile a (possibly empty) parameter list"""
         self.output.write('<parameterList>\n')
 
-        if self.input.current_token == ')':
-            return
-
-        self._eat(self.input.current_token)  # type
-        self._eat(self.input.current_token)  # varName
-
-        # the presence of a comma means that there are more parameters
-        while self.input.current_token == ',':
-            self._eat(',')
+        if self.input.current_token != ')':
             self._eat(self.input.current_token)  # type
             self._eat(self.input.current_token)  # varName
+
+            # the presence of a comma means that there are more parameters
+            while self.input.current_token == ',':
+                self._eat(',')
+                self._eat(self.input.current_token)  # type
+                self._eat(self.input.current_token)  # varName
 
         self.output.write('</parameterList>\n')
 
