@@ -28,6 +28,7 @@ class CompilationEngine:
 
     Methods:
         compile_class() -> None
+        compile_class_var_dec() -> None
     """
 
     def __init__(self, tokenizer, filename):
@@ -56,17 +57,33 @@ class CompilationEngine:
 
     def compile_class(self):
         """Compile a complete class"""
-        self.output.write('<class>\n',)
+        self.output.write('<class>\n')
         self._eat('class')
-        self._eat(self.input.current_token)
+        self._eat(self.input.current_token)  # className
         self._eat('{')
-        self.compile_class_var_dec()
+        
+        while self.input.current_token in ('static', 'field'):
+            self.compile_class_var_dec()
         self.compile_subroutine()
         self._eat('}')
         self.output.write('</class>\n')
 
     def compile_class_var_dec(self):
-        pass
+        """Compiles a static or field variable declaration"""
+        self.output.write('<classVarDec>\n')
+        
+        self._eat(self.input.current_token)  # 'static'|'field'
+        self._eat(self.input.current_token)  # type
+        self._eat(self.input.current_token)  # varName
+
+        # if a comma is present, that means there are more variable names
+        while self.input.current_token == ',':
+            self._eat(',')
+            self._eat(self.input.current_token)  # varName
+
+        self._eat(';')
+
+        self.output.write('</classVarDec>\n')
 
     def compile_subroutine(self):
         pass
