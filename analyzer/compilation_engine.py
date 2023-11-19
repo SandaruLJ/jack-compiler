@@ -6,7 +6,7 @@ Classes:
 
 import sys
 
-from constants import TerminalElement
+from constants import TerminalElement, TokenType
 
 
 class CompilationEngine:
@@ -33,6 +33,13 @@ class CompilationEngine:
         compile_parameter_list() -> None
         compile_subroutine_body() -> None
         compile_var_dec() -> None
+        compile_statements() -> None
+        compile_let() -> None
+        compile_if() -> None
+        compile_while() -> None
+        compile_do() -> None
+        compile_return() -> None
+        compile_expression_list() -> int
     """
 
     def __init__(self, tokenizer, filename):
@@ -153,4 +160,136 @@ class CompilationEngine:
         self.output.write('</varDec>\n')
 
     def compile_statements(self):
-        pass
+        """Compile a sequence of statements"""
+        self.output.write('<statements>\n')
+
+        while self.input.current_token != '}':
+            if self.input.current_token == 'let':
+                self.compile_let()
+            elif self.input.current_token == 'if':
+                self.compile_if()
+            elif self.input.current_token == 'while':
+                self.compile_while()
+            elif self.input.current_token == 'do':
+                self.compile_do()
+            elif self.input.current_token == 'return':
+                self.compile_return()
+
+        self.output.write('</statements>\n')
+
+    def compile_let(self):
+        """Compile a let statement"""
+        self.output.write('<letStatement>\n')
+
+        self._eat('let')
+        # TODO: handle array indexing with expression
+        self._eat(self.input.current_token)  # varName|varName'['expression']'
+        self._eat('=')
+        # TODO: handle expression
+        self.compile_expression()
+        self._eat(';')
+
+        self.output.write('</letStatement>\n')
+
+    def compile_if(self):
+        """Compile an if statement, possibly with a trailing else clause"""
+        self.output.write('<ifStatement>\n')
+
+        self._eat('if')
+        self._eat('(')
+        self.compile_expression()
+        self._eat(')')
+        self._eat('{')
+        self.compile_statements()
+        self._eat('}')
+
+        # handle optional else clause
+        if self.input.current_token == 'else':
+            self._eat('else')
+            self._eat('{')
+            self.compile_statements()
+            self._eat('}')
+
+        self.output.write('</ifStatement>\n')
+
+    def compile_while(self):
+        """Compile a while statement"""
+        self.output.write('<whileStatement>\n')
+
+        self._eat('while')
+        self._eat('(')
+        self.compile_expression()
+        self._eat(')')
+        self._eat('{')
+        self.compile_statements()
+        self._eat('}')
+
+        self.output.write('</whileStatement>\n')
+
+
+    def compile_do(self):
+        """Compile a do statement"""
+        self.output.write('<doStatement>\n')
+
+        self._eat('do')
+        self._compile_subroutine_call()
+        self._eat(';')
+
+        self.output.write('</doStatement>\n')
+
+    def compile_return(self):
+        """Compile a return statement"""
+        self.output.write('<returnStatement>\n')
+
+        self._eat('return')
+        if self.input.current_token != ';':
+            self.compile_expression()
+        self._eat(';')
+
+        self.output.write('</returnStatement>\n')
+
+    def compile_expression(self):
+        """Compile an expression"""
+        self.output.write('<expression>\n')
+
+        # TODO: handle multiple terms with operators
+        self.compile_term()
+
+        self.output.write('</expression>\n')
+
+    def compile_term(self):
+        """Compile a term"""
+        self.output.write('<term>\n')
+
+        # TODO: handle terms other than constants and simple identifiers
+        # integerConstant|stringConstant|keywordConstant|varName
+        self._eat(self.input.current_token)
+
+        self.output.write('</term>\n')
+
+    def compile_expression_list(self):
+        """Compile an (possibly empty) comma-separated list of expressions.
+        Return the number of expressions in the list.
+        """
+        self.output.write('<expressionList>\n')
+
+        if self.input.current_token != ')':
+            self.compile_expression()
+        while self.input.current_token == ',':
+            self._eat(',')
+            self.compile_expression()
+
+        self.output.write('</expressionList>\n')
+
+    def _compile_subroutine_call(self):
+        """Compile a subroutine call"""
+        self._eat(self.input.current_token)
+
+        if self.input.current_token == '.':
+            self._eat('.')
+            self._eat(self.input.current_token)  # varName
+
+        if self.input.current_token == '(':
+            self._eat('(')
+            self.compile_expression_list()
+            self._eat(')')
