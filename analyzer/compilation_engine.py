@@ -31,6 +31,7 @@ class CompilationEngine:
         compile_class_var_dec() -> None
         compile_subroutine() -> None
         compile_parameter_list() -> None
+        compile_subroutine_body() -> None
     """
 
     def __init__(self, tokenizer, filename):
@@ -124,4 +125,19 @@ class CompilationEngine:
         self.output.write('</parameterList>\n')
 
     def compile_subroutine_body(self):
+        """Compile a subroutine's body"""
+        self.output.write('<subroutineBody>\n')
+
+        self._eat('{')
+        while self.input.current_token == 'var':
+            self.compile_var_dec()
+        self.compile_statements()
+        self._eat('}')
+
+        self.output.write('</subroutineBody>\n')
+
+    def compile_var_dec(self):
+        pass
+
+    def compile_statements(self):
         pass
