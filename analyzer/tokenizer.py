@@ -61,7 +61,13 @@ class Tokenizer:
             if f'{char}{next_char}'  in ('//', '/*'):
                 if self.current_token:
                     return True
-                self.file.readline()
+                if f'{char}{next_char}' == '/*':
+                    while char:= self.file.read(1):
+                        if char == '*':
+                            if self.file.read(1) == '/':
+                                break;
+                else:
+                    self.file.readline()
                 continue
 
             # check for symbols
