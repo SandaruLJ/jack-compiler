@@ -54,8 +54,9 @@ class Tokenizer:
                 continue
 
             # look ahead next character
+            current_position = self.file.tell()
             next_char = self.file.read(1)
-            self.file.seek(self.file.tell() - 1)  # restore to current position
+            self.file.seek(current_position)
 
             # ignore comments
             if f'{char}{next_char}'  in ('//', '/*'):
