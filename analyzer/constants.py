@@ -43,8 +43,8 @@ class KeywordType:
 class TerminalElement:
     KEYWORD = 'keyword'
     SYMBOL = 'symbol'
-    INTEGER_CONSTANT = 'integerConstant'
-    STRING_CONSTANT = 'stringConstant'
+    INT_CONST = 'integerConstant'
+    STRING_CONST = 'stringConstant'
     IDENTIFIER = 'identifier'
 
 

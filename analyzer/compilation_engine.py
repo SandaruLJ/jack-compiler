@@ -53,10 +53,12 @@ class CompilationEngine:
         token_type = getattr(TerminalElement, self.input.token_type())
 
         if self.input.current_token != token:
-            print('Invalid token.')
+            print(f'Invalid token: {token} is not {self.input.current_token}.')
             sys.exit(1)
         else:
-            if token == '<':
+            if self.input.token_type() == TokenType.STRING_CONST:
+                token = token.strip('"')
+            elif token == '<':
                 token = '&lt;'
             elif token == '>':
                 token = '&gt;'
@@ -182,10 +184,14 @@ class CompilationEngine:
         self.output.write('<letStatement>\n')
 
         self._eat('let')
-        # TODO: handle array indexing with expression
-        self._eat(self.input.current_token)  # varName|varName'['expression']'
+        self._eat(self.input.current_token)  # varName
+        
+        if self.input.current_token == '[':  # varName'['expression']'
+            self._eat('[')
+            self.compile_expression()
+            self._eat(']')
+
         self._eat('=')
-        # TODO: handle expression
         self.compile_expression()
         self._eat(';')
 
@@ -252,8 +258,11 @@ class CompilationEngine:
         """Compile an expression"""
         self.output.write('<expression>\n')
 
-        # TODO: handle multiple terms with operators
-        self.compile_term()
+        self.compile_term()  # term
+        # (op term)
+        if self.input.current_token in ('+', '-', '*', '/', '&', '|', '<', '>', '='):
+            self._eat(self.input.current_token)
+            self.compile_term()
 
         self.output.write('</expression>\n')
 
@@ -261,9 +270,28 @@ class CompilationEngine:
         """Compile a term"""
         self.output.write('<term>\n')
 
-        # TODO: handle terms other than constants and simple identifiers
+        # (unaryOp term)
+        if self.input.current_token in ('-', '~'):
+            self._eat(self.input.current_token)
+            self.compile_term()
+
+        # '('expression')'
+        elif self.input.current_token == '(':
+            self._eat('(')
+            self.compile_expression()
+            self._eat(')')
+
         # integerConstant|stringConstant|keywordConstant|varName
-        self._eat(self.input.current_token)
+        else:
+            self._eat(self.input.current_token)
+
+            if self.input.current_token == '.':  # subroutineCall
+                self._eat('.')
+                self._compile_subroutine_call()
+            elif self.input.current_token == '[':  # varName'['expression']'
+                self._eat('[')
+                self.compile_expression()
+                self._eat(']')
 
         self.output.write('</term>\n')
 
