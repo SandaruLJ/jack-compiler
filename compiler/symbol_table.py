@@ -22,6 +22,10 @@ class SymbolTable:
     Methods:
         reset() -> None
         define(str, str, VariableKind) -> None
+        var_count(VariableKind) -> int
+        kind_of(str) -> VariableKind
+        type_of(str) -> str
+        index_of(str) -> int
     """
 
     def __init__(self):
@@ -50,3 +54,27 @@ class SymbolTable:
             "index": self.index[kind]
         }
         self.index[kind] += 1
+
+    def var_count(self, kind):
+        """Return the number of variables in the table of the given kind"""
+        return self.index[kind]
+
+    def kind_of(self, name):
+        """Return the kind of the named identifier.
+        If the identifier is not found, return None.
+        """
+        if name in self.symbol_table:
+            return self.symbol_table[name]["kind"]
+        return None
+
+    def type_of(self, name):
+        """Return the type of the named variable"""
+        if name in self.symbol_table:
+            return self.symbol_table[name]["type"]
+        return None
+
+    def index_of(self, name):
+        """Return the index of the named variable"""
+        if name in self.symbol_table:
+            return self.symbol_table[name]["index"]
+        return None
