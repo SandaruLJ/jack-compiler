@@ -5,6 +5,7 @@ import sys
 
 from tokenizer import Tokenizer
 from compilation_engine import CompilationEngine
+from symbol_table import SymbolTable
 
 
 SOURCE_EXT = 'jack'
@@ -31,7 +32,7 @@ def main():
         source_files = [source]
         target_file = _parse_filename(source)[0] + f'.{TARGET_EXT}'
 
-    # TODO: Replace with actual code
+    # Compile each class source file
     for source_file in source_files:
         filename, ext = _parse_filename(source_file)
 

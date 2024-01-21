@@ -78,4 +78,4 @@ class SymbolTable:
         """Return the index of the named variable"""
         if name in self.symbols:
             return self.symbols[name][SymbolTableField.INDEX]
-        return None
+        return -1
