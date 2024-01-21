@@ -5,6 +5,7 @@ Classes:
 """
 
 from enums.variable_kind import VariableKind
+from enums.symbol_table_field import SymbolTableField
 
 
 class SymbolTable:
@@ -35,7 +36,7 @@ class SymbolTable:
         """Empty the symbol table, and reset the four indexes to 0.
         Should be called when starting to compile a subroutine declaration.
         """
-        self.symbol_table = {}
+        self.symbols = {}
         self.index = {
             VariableKind.STATIC: 0,
             VariableKind.FIELD: 0,
@@ -48,10 +49,10 @@ class SymbolTable:
         name, type, and kind. Assign to it the index value of that kind,
         and add 1 to the index.
         """
-        self.symbol_table[name] = {
-            "type": data_type,
-            "kind": kind,
-            "index": self.index[kind]
+        self.symbols[name] = {
+            SymbolTableField.TYPE: data_type,
+            SymbolTableField.KIND: kind,
+            SymbolTableField.INDEX: self.index[kind]
         }
         self.index[kind] += 1
 
@@ -63,18 +64,18 @@ class SymbolTable:
         """Return the kind of the named identifier.
         If the identifier is not found, return None.
         """
-        if name in self.symbol_table:
-            return self.symbol_table[name]["kind"]
+        if name in self.symbols:
+            return self.symbols[name][SymbolTableField.KIND]
         return None
 
     def type_of(self, name):
         """Return the type of the named variable"""
-        if name in self.symbol_table:
-            return self.symbol_table[name]["type"]
+        if name in self.symbols:
+            return self.symbols[name][SymbolTableField.TYPE]
         return None
 
     def index_of(self, name):
         """Return the index of the named variable"""
-        if name in self.symbol_table:
-            return self.symbol_table[name]["index"]
+        if name in self.symbols:
+            return self.symbols[name][SymbolTableField.INDEX]
         return None
