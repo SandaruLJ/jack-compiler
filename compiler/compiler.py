@@ -6,10 +6,11 @@ import sys
 from tokenizer import Tokenizer
 from compilation_engine import CompilationEngine
 from symbol_table import SymbolTable
+from vm_writer import VmWriter
 
 
 SOURCE_EXT = 'jack'
-TARGET_EXT = 'xml'
+TARGET_EXT = 'vm'
 
 
 def main():
@@ -43,10 +44,12 @@ def main():
 
         # create tokenizer instance for each source file
         tokenizer = Tokenizer(source_file)
+        # create vm writer instance for each output file
+        vm_writer = VmWriter(f'{filename}.{TARGET_EXT}')
 
         # compile tokens
         if tokenizer.advance():
-            compilation_engine = CompilationEngine(tokenizer, f'{filename}.{TARGET_EXT}')
+            compilation_engine = CompilationEngine(tokenizer, vm_writer)
             compilation_engine.compile_class()
 
 
