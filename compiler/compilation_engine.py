@@ -7,6 +7,8 @@ Classes:
 import sys
 
 from constants import TerminalElement, TokenType
+from enums.arithmetic_command import ArithmeticCommand
+from enums.segment import Segment
 from enums.symbol_table_field import SymbolTableField
 from enums.variable_kind import VariableKind
 from symbol_table import SymbolTable
@@ -29,6 +31,9 @@ class CompilationEngine:
         input: input stream of tokens
         output: file object of the output
         symbol_tables: class level and subroutine level symbol tables
+        classname: name of the class being compiled
+        subroutine: name of the subroutine being compiled
+        subroutine_num_vars: number of local variables in current subroutine
 
     Methods:
         compile_class() -> None
@@ -46,15 +51,22 @@ class CompilationEngine:
         compile_expression_list() -> int
     """
 
-    def __init__(self, tokenizer, filename):
+    def __init__(self, tokenizer, vm_writer):
         self.input = tokenizer
         self.symbol_tables = {'class': SymbolTable(), 'subroutine': SymbolTable()}
-        self.output = open(filename, 'w')
+        self.output = vm_writer
+        self.classname = ''
+        self.subroutine = ''
+        self.subroutine_num_vars = 0
 
     def __del__(self):
         self.output.close()
 
     def _eat(self, token, identifier_category=None, declaration=False):
+        self.input.advance()
+        return
+
+        # old code
         token_type = getattr(TerminalElement, self.input.token_type())
 
         if self.input.current_token != token:
@@ -101,14 +113,9 @@ class CompilationEngine:
 
     def compile_class(self):
         """Compile a complete class"""
-        self.output.write('<class>\n')
-
         self._eat('class')
-        self._eat(
-            self.input.current_token,
-            identifier_category='class',
-            declaration=True
-        )  # className
+        self.classname = self.input.current_token
+        self._eat(self.input.current_token)  # className
         self._eat('{')
 
         while self.input.current_token in ('static', 'field'):
@@ -118,14 +125,9 @@ class CompilationEngine:
 
         self._eat('}')
 
-        self.output.write('</class>\n')
-
     def compile_class_var_dec(self):
         """Compile a static or field variable declaration"""
-        self.output.write('<classVarDec>\n')
-
-        # data for populating the symbol table
-        var_props = {}
+        var_props = {}  # data for populating the symbol table
 
         # variable kind
         if self.input.current_token == 'static':
@@ -144,7 +146,7 @@ class CompilationEngine:
             var_props[SymbolTableField.TYPE],
             var_props[SymbolTableField.KIND]
         )  # populate symbol table
-        self._eat(self.input.current_token, declaration=True)  # varName
+        self._eat(self.input.current_token)  # varName
 
         # if a comma is present, that means there are more variables
         while self.input.current_token == ',':
@@ -154,37 +156,28 @@ class CompilationEngine:
                 var_props[SymbolTableField.TYPE],
                 var_props[SymbolTableField.KIND]
             )  # populate symbol table
-            self._eat(self.input.current_token, declaration=True)  # varName
+            self._eat(self.input.current_token)  # varName
 
         self._eat(';')
 
-        self.output.write('</classVarDec>\n')
-
     def compile_subroutine(self):
         """Compile a complete method, function, or constructor"""
-        self.output.write('<subroutineDec>\n')
-
         # reset subroutine level symbol table
         self.symbol_tables['subroutine'].reset()
+        # reset number of local variables
+        self.subroutine_num_vars = 0
 
         self._eat(self.input.current_token)  # 'constructor'|'function'|'method'
         self._eat(self.input.current_token)  # 'void'|type
-        self._eat(
-            self.input.current_token,
-            identifier_category='subroutine',
-            declaration=True
-        )  # subroutineName
+        self.subroutine = f'{self.classname}.{self.input.current_token}'
+        self._eat(self.input.current_token)  # subroutineName
         self._eat('(')
         self.compile_parameter_list()
         self._eat(')')
         self.compile_subroutine_body()
 
-        self.output.write('</subroutineDec>\n')
-
     def compile_parameter_list(self):
         """Compile a (possibly empty) parameter list"""
-        self.output.write('<parameterList>\n')
-
         if self.input.current_token != ')':
             arg_type = self.input.current_token
             self._eat(self.input.current_token)  # type
@@ -207,24 +200,18 @@ class CompilationEngine:
                 )  # populate symbol table
                 self._eat(self.input.current_token, declaration=True)  # varName
 
-        self.output.write('</parameterList>\n')
-
     def compile_subroutine_body(self):
         """Compile a subroutine's body"""
-        self.output.write('<subroutineBody>\n')
-
         self._eat('{')
         while self.input.current_token == 'var':
             self.compile_var_dec()
+        # generate function command after variable declarations are compiled
+        self.output.write_function(self.subroutine, self.subroutine_num_vars)
         self.compile_statements()
         self._eat('}')
 
-        self.output.write('</subroutineBody>\n')
-
     def compile_var_dec(self):
         """Compile a variable declaration"""
-        self.output.write('<varDec>\n')
-
         self._eat('var')
         var_type = self.input.current_token
         self._eat(self.input.current_token)  # type
@@ -233,6 +220,7 @@ class CompilationEngine:
             var_type,
             VariableKind.VAR
         )  # populate symbol table
+        self.subroutine_num_vars += 1  # increment local variable counter
         self._eat(self.input.current_token, declaration=True)  # varName
 
         # check for and compile more variable names
@@ -243,15 +231,14 @@ class CompilationEngine:
                 var_type,
                 VariableKind.VAR
             )  # populate symbol table
+            self.subroutine_num_vars += 1  # increment local variable counter
             self._eat(self.input.current_token, declaration=True)  # varName
 
         self._eat(';')
 
-        self.output.write('</varDec>\n')
-
     def compile_statements(self):
         """Compile a sequence of statements"""
-        self.output.write('<statements>\n')
+        # self.output.write('<statements>\n')
 
         while self.input.current_token != '}':
             if self.input.current_token == 'let':
@@ -265,11 +252,11 @@ class CompilationEngine:
             elif self.input.current_token == 'return':
                 self.compile_return()
 
-        self.output.write('</statements>\n')
+        # self.output.write('</statements>\n')
 
     def compile_let(self):
         """Compile a let statement"""
-        self.output.write('<letStatement>\n')
+        # self.output.write('<letStatement>\n')
 
         self._eat('let')
         self._eat(self.input.current_token)  # varName
@@ -283,11 +270,11 @@ class CompilationEngine:
         self.compile_expression()
         self._eat(';')
 
-        self.output.write('</letStatement>\n')
+        # self.output.write('</letStatement>\n')
 
     def compile_if(self):
         """Compile an if statement, possibly with a trailing else clause"""
-        self.output.write('<ifStatement>\n')
+        # self.output.write('<ifStatement>\n')
 
         self._eat('if')
         self._eat('(')
@@ -304,11 +291,11 @@ class CompilationEngine:
             self.compile_statements()
             self._eat('}')
 
-        self.output.write('</ifStatement>\n')
+        # self.output.write('</ifStatement>\n')
 
     def compile_while(self):
         """Compile a while statement"""
-        self.output.write('<whileStatement>\n')
+        # self.output.write('<whileStatement>\n')
 
         self._eat('while')
         self._eat('(')
@@ -318,48 +305,66 @@ class CompilationEngine:
         self.compile_statements()
         self._eat('}')
 
-        self.output.write('</whileStatement>\n')
+        # self.output.write('</whileStatement>\n')
 
 
     def compile_do(self):
         """Compile a do statement"""
-        self.output.write('<doStatement>\n')
-
         self._eat('do')
         self._compile_subroutine_call()
+        # discard return value of void subroutine
+        self.output.write_pop(Segment.TEMP, 0)
         self._eat(';')
-
-        self.output.write('</doStatement>\n')
 
     def compile_return(self):
         """Compile a return statement"""
-        self.output.write('<returnStatement>\n')
-
         self._eat('return')
         if self.input.current_token != ';':
             self.compile_expression()
+        else:
+            self.output.write_push(Segment.CONSTANT, 0)
+        self.output.write_return()
         self._eat(';')
-
-        self.output.write('</returnStatement>\n')
 
     def compile_expression(self):
         """Compile an expression"""
-        self.output.write('<expression>\n')
-
         self.compile_term()  # term
+        
         # (op term)
-        if self.input.current_token in ('+', '-', '*', '/', '&', '|', '<', '>', '='):
+        while self.input.current_token in ('+', '-', '*', '/', '&', '|', '<', '>', '='):
+            op = self.input.current_token  # remember operation to be performed postfix
             self._eat(self.input.current_token)
             self.compile_term()
 
-        self.output.write('</expression>\n')
+            if op == '+':
+                self.output.write_arithmetic(ArithmeticCommand.ADD)
+            elif op == '-':
+                self.output.write_arithmetic(ArithmeticCommand.SUB)
+            elif op == '*':
+                self.output.write_call('Math.multiply', 2)
+            elif op == '/':
+                self.output.write_call('Math.divide', 2)
+            elif op == '&':
+                self.output.write_arithmetic(ArithmeticCommand.AND)
+            elif op == '|':
+                self.output.write_arithmetic(ArithmeticCommand.OR)
+            elif op == '<':
+                self.output.write_arithmetic(ArithmeticCommand.LT)
+            elif op == '>':
+                self.output.write_arithmetic(ArithmeticCommand.GT)
+            elif op == '=':
+                self.output.write_arithmetic(ArithmeticCommand.EQ)
 
     def compile_term(self):
         """Compile a term"""
-        self.output.write('<term>\n')
+        # self.output.write('<term>\n')
 
         # (unaryOp term)
         if self.input.current_token in ('-', '~'):
+            if self.input.current_token == '-':
+                self.output.write_arithmetic(ArithmeticCommand.NEG)
+            else:
+                self.output.write_arithmetic(ArithmeticCommand.NOT)
             self._eat(self.input.current_token)
             self.compile_term()
 
@@ -371,41 +376,54 @@ class CompilationEngine:
 
         # integerConstant|stringConstant|keywordConstant|varName
         else:
+            term = self.input.current_token
             self._eat(self.input.current_token)
 
             if self.input.current_token == '.':  # subroutineCall
                 self._eat('.')
-                self._compile_subroutine_call()
+                self._compile_subroutine_call(term)
             elif self.input.current_token == '[':  # varName'['expression']'
                 self._eat('[')
                 self.compile_expression()
                 self._eat(']')
+            else:  # handle pushing term onto the stack
+                if term.isdecimal():
+                    self.output.write_push(Segment.CONSTANT, term)
 
-        self.output.write('</term>\n')
+        # self.output.write('</term>\n')
 
     def compile_expression_list(self):
         """Compile an (possibly empty) comma-separated list of expressions.
         Return the number of expressions in the list.
         """
-        self.output.write('<expressionList>\n')
+        num_args = 0
 
         if self.input.current_token != ')':
             self.compile_expression()
+            num_args += 1
         while self.input.current_token == ',':
             self._eat(',')
             self.compile_expression()
+            num_args += 1
 
-        self.output.write('</expressionList>\n')
+        return num_args
 
-    def _compile_subroutine_call(self):
+    def _compile_subroutine_call(self, call_on=None):
         """Compile a subroutine call"""
+        num_args = 0
+
+        # save subroutine name
+        subroutine_name = (call_on + '.') if call_on else '' + self.input.current_token
         self._eat(self.input.current_token)
 
         if self.input.current_token == '.':
             self._eat('.')
+            subroutine_name += f'.{self.input.current_token}'
             self._eat(self.input.current_token)  # varName
 
         if self.input.current_token == '(':
             self._eat('(')
-            self.compile_expression_list()
+            num_args = self.compile_expression_list()
             self._eat(')')
+
+        self.output.write_call(subroutine_name, num_args)
