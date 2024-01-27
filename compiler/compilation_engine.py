@@ -6,7 +6,7 @@ Classes:
 
 import sys
 
-from constants import TerminalElement, TokenType
+from constants import TerminalElement, TokenType, keywords
 from enums.arithmetic_command import ArithmeticCommand
 from enums.segment import Segment
 from enums.symbol_table_field import SymbolTableField
@@ -34,6 +34,7 @@ class CompilationEngine:
         classname: name of the class being compiled
         subroutine: name of the subroutine being compiled
         subroutine_num_vars: number of local variables in current subroutine
+        label_count: counter used for generating unique labels
 
     Methods:
         compile_class() -> None
@@ -58,6 +59,7 @@ class CompilationEngine:
         self.classname = ''
         self.subroutine = ''
         self.subroutine_num_vars = 0
+        self.label_count = 0
 
     def __del__(self):
         self.output.close()
@@ -256,11 +258,15 @@ class CompilationEngine:
 
     def compile_let(self):
         """Compile a let statement"""
-        # self.output.write('<letStatement>\n')
-
         self._eat('let')
+        variable = self.input.current_token
         self._eat(self.input.current_token)  # varName
-        
+
+        # get VM memory segment and index of the variable from symbol table
+        table = self._symbol_table_lookup(variable)
+        segment = self._determine_var_segment(self.symbol_tables[table].kind_of(variable))
+        index = self.symbol_tables[table].index_of(variable)
+
         if self.input.current_token == '[':  # varName'['expression']'
             self._eat('[')
             self.compile_expression()
@@ -268,17 +274,17 @@ class CompilationEngine:
 
         self._eat('=')
         self.compile_expression()
+        self.output.write_pop(segment, index)
         self._eat(';')
-
-        # self.output.write('</letStatement>\n')
 
     def compile_if(self):
         """Compile an if statement, possibly with a trailing else clause"""
-        # self.output.write('<ifStatement>\n')
-
         self._eat('if')
         self._eat('(')
         self.compile_expression()
+        self.output.write_arithmetic(ArithmeticCommand.NOT)
+        label_1 = self._generate_label()
+        self.output.write_if(label_1)
         self._eat(')')
         self._eat('{')
         self.compile_statements()
@@ -288,25 +294,31 @@ class CompilationEngine:
         if self.input.current_token == 'else':
             self._eat('else')
             self._eat('{')
+            label_2 = self._generate_label()
+            self.output.write_goto(label_2)
+            self.output.write_label(label_1)
             self.compile_statements()
+            self.output.write_label(label_2)
             self._eat('}')
-
-        # self.output.write('</ifStatement>\n')
+        else:
+            self.output.write_label(label_1)
 
     def compile_while(self):
         """Compile a while statement"""
-        # self.output.write('<whileStatement>\n')
-
         self._eat('while')
         self._eat('(')
+        label_1 = self._generate_label()
+        label_2 = self._generate_label()
+        self.output.write_label(label_1)
         self.compile_expression()
+        self.output.write_arithmetic(ArithmeticCommand.NOT)
+        self.output.write_if(label_2)
         self._eat(')')
         self._eat('{')
         self.compile_statements()
+        self.output.write_goto(label_1)
+        self.output.write_label(label_2)
         self._eat('}')
-
-        # self.output.write('</whileStatement>\n')
-
 
     def compile_do(self):
         """Compile a do statement"""
@@ -357,16 +369,15 @@ class CompilationEngine:
 
     def compile_term(self):
         """Compile a term"""
-        # self.output.write('<term>\n')
-
         # (unaryOp term)
         if self.input.current_token in ('-', '~'):
             if self.input.current_token == '-':
-                self.output.write_arithmetic(ArithmeticCommand.NEG)
+                op = ArithmeticCommand.NEG
             else:
-                self.output.write_arithmetic(ArithmeticCommand.NOT)
+                op = ArithmeticCommand.NOT
             self._eat(self.input.current_token)
             self.compile_term()
+            self.output.write_arithmetic(op)
 
         # '('expression')'
         elif self.input.current_token == '(':
@@ -376,21 +387,32 @@ class CompilationEngine:
 
         # integerConstant|stringConstant|keywordConstant|varName
         else:
-            term = self.input.current_token
+            term = self.input.current_token  # save term for later use
             self._eat(self.input.current_token)
 
-            if self.input.current_token == '.':  # subroutineCall
+            if term.isdecimal():  # integerConstant
+                self.output.write_push(Segment.CONSTANT, term)
+            elif keywords.get(term):  # keywordConstant
+                if term in ('false', 'null'):
+                    self.output.write_push(Segment.CONSTANT, 0)
+                elif term == 'true':
+                    self.output.write_push(Segment.CONSTANT, 1)
+                    self.output.write_arithmetic(ArithmeticCommand.NEG)
+                elif term == 'this':
+                    self.output.write_push(Segment.POINTER, 0)
+            elif table:= self._symbol_table_lookup(term):  # varName
+                segment = self._determine_var_segment(self.symbol_tables[table].kind_of(term))
+                index = self.symbol_tables[table].index_of(term)
+                self.output.write_push(segment, index)
+            elif self.input.current_token == '(':  # subroutineCall
+                self._compile_subroutine_call(call_on=None, override_name=term)
+            elif self.input.current_token == '.':  # subroutineCall
                 self._eat('.')
-                self._compile_subroutine_call(term)
+                self._compile_subroutine_call(call_on=term)
             elif self.input.current_token == '[':  # varName'['expression']'
                 self._eat('[')
                 self.compile_expression()
                 self._eat(']')
-            else:  # handle pushing term onto the stack
-                if term.isdecimal():
-                    self.output.write_push(Segment.CONSTANT, term)
-
-        # self.output.write('</term>\n')
 
     def compile_expression_list(self):
         """Compile an (possibly empty) comma-separated list of expressions.
@@ -408,13 +430,16 @@ class CompilationEngine:
 
         return num_args
 
-    def _compile_subroutine_call(self, call_on=None):
+    def _compile_subroutine_call(self, call_on=None, override_name=None):
         """Compile a subroutine call"""
         num_args = 0
 
         # save subroutine name
-        subroutine_name = (call_on + '.') if call_on else '' + self.input.current_token
-        self._eat(self.input.current_token)
+        if not override_name:
+            subroutine_name = (call_on + '.' if call_on else '') + self.input.current_token
+            self._eat(self.input.current_token)
+        else:
+            subroutine_name = override_name
 
         if self.input.current_token == '.':
             self._eat('.')
@@ -427,3 +452,29 @@ class CompilationEngine:
             self._eat(')')
 
         self.output.write_call(subroutine_name, num_args)
+
+    def _symbol_table_lookup(self, variable):
+        """Return which symbol table (subroutine, class) contains the specified variable.
+        Return None if neither does.
+        """
+        if self.symbol_tables['subroutine'].index_of(variable) >= 0:
+            return 'subroutine'
+        elif self.symbol_tables['class'].index_of(variable) >= 0:
+            return 'class'
+        else:
+            return None
+
+    def _determine_var_segment(self, kind):
+        """Return VM segment that the variable kind corresponds to"""
+        if kind == VariableKind.STATIC:
+            return Segment.STATIC
+        if kind == VariableKind.FIELD:
+            return Segment.THIS
+        if kind == VariableKind.ARG:
+            return Segment.ARGUMENT
+        if kind == VariableKind.VAR:
+            return Segment.LOCAL
+
+    def _generate_label(self):
+        self.label_count += 1
+        return f'L{self.label_count}'
