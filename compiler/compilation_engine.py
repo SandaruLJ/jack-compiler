@@ -176,6 +176,15 @@ class CompilationEngine:
         self.subroutine = f'{self.classname}.{self.input.current_token}'
         self._eat(self.input.current_token)  # subroutineName
         self._eat('(')
+        
+        # if compiling a method, add 'this' reference to symbol table
+        if self.subroutine_type == 'method':
+            self.symbol_tables['subroutine'].define(
+                'this',
+                self.classname,
+                VariableKind.ARG
+            )
+        
         self.compile_parameter_list()
         self._eat(')')
         self.compile_subroutine_body()
@@ -221,6 +230,10 @@ class CompilationEngine:
             self.output.write_push(Segment.CONSTANT, num_field_vars)
             self.output.write_call('Memory.alloc', 1)
             # set THIS to point to the base address of the newly allocated memory block
+            self.output.write_pop(Segment.POINTER, 0)
+        # if subroutine is a method, generate code to map the target object to 'this' segment
+        elif self.subroutine_type == 'method':
+            self.output.write_push(Segment.ARGUMENT, 0)
             self.output.write_pop(Segment.POINTER, 0)
         
         self.compile_statements()
@@ -462,7 +475,33 @@ class CompilationEngine:
 
         if self.input.current_token == '(':
             self._eat('(')
-            num_args = self.compile_expression_list()
+
+            # if calling a method, pass the target object as the first argument
+            if '.' in subroutine_name:  # check for varName.methodName possiblity
+                var_name = subroutine_name.split('.')[0]
+                
+                # check if varName is in a symbol table, and thus, an object,
+                # which indicates a method call. If not, it is a function call
+                if table:= self._symbol_table_lookup(var_name):
+                    segment = self._determine_var_segment(self.symbol_tables[table].kind_of(var_name))
+                    index = self.symbol_tables[table].index_of(var_name)
+                    
+                    # pass the target object as the first argument
+                    self.output.write_push(segment, index)
+                    num_args = 1  # set argument count for method call to 1
+                    
+                    # replace varName with className of object
+                    var_type = self.symbol_tables[table].type_of(var_name)
+                    subroutine_name = f'{var_type}.{subroutine_name.split(".")[1]}'
+            
+            else:  # indicates a method call on the current object
+                # pass 'this' (current object) as the first argument
+                self.output.write_push(Segment.POINTER, 0)
+                num_args = 1  # set argument count for method call to 1
+                # prepend className to method call
+                subroutine_name = f'{self.classname}.{subroutine_name}'
+
+            num_args += self.compile_expression_list()
             self._eat(')')
 
         self.output.write_call(subroutine_name, num_args)
