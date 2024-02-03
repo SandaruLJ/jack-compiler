@@ -59,6 +59,7 @@ class CompilationEngine:
         self.classname = ''
         self.subroutine = ''
         self.subroutine_num_vars = 0
+        self.subroutine_type = ''
         self.label_count = 0
 
     def __del__(self):
@@ -169,6 +170,7 @@ class CompilationEngine:
         # reset number of local variables
         self.subroutine_num_vars = 0
 
+        self.subroutine_type = self.input.current_token
         self._eat(self.input.current_token)  # 'constructor'|'function'|'method'
         self._eat(self.input.current_token)  # 'void'|type
         self.subroutine = f'{self.classname}.{self.input.current_token}'
@@ -207,8 +209,20 @@ class CompilationEngine:
         self._eat('{')
         while self.input.current_token == 'var':
             self.compile_var_dec()
+        
         # generate function command after variable declarations are compiled
         self.output.write_function(self.subroutine, self.subroutine_num_vars)
+        
+        # generate object instantiation code if the subroutine is a constructor
+        if self.subroutine_type == 'constructor':
+            # get number of field variables in class to determine object size
+            num_field_vars = self.symbol_tables['class'].var_count(VariableKind.FIELD)
+            # allocate memory block of required size for the object
+            self.output.write_push(Segment.CONSTANT, num_field_vars)
+            self.output.write_call('Memory.alloc', 1)
+            # set THIS to point to the base address of the newly allocated memory block
+            self.output.write_pop(Segment.POINTER, 0)
+        
         self.compile_statements()
         self._eat('}')
 
