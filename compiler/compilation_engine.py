@@ -65,54 +65,10 @@ class CompilationEngine:
     def __del__(self):
         self.output.close()
 
-    def _eat(self, token, identifier_category=None, declaration=False):
+    def _eat(self, token):
+        # can use token for logging purposes, otherwise this method is redundant
         self.input.advance()
         return
-
-        # old code
-        token_type = getattr(TerminalElement, self.input.token_type())
-
-        if self.input.current_token != token:
-            print(f'Invalid token: {token} is not {self.input.current_token}.')
-            sys.exit(1)
-
-        if self.input.token_type() == TokenType.STRING_CONST:
-            token = token.strip('"')
-        elif token == '<':
-            token = '&lt;'
-        elif token == '>':
-            token = '&gt;'
-        elif token == '&':
-            token = '&amp;'
-
-        if token_type == TerminalElement.IDENTIFIER:
-            self.output.write('<identifier>\n')
-            self.output.write(f'<name> {token} </name>\n')
-
-            if identifier_category in ('class', 'subroutine'):
-                self.output.write(f'<category> {identifier_category} </category>\n')
-            else:
-                # check which symbol table contains the variable
-                if self.symbol_tables['subroutine'].index_of(token) >= 0:
-                    level = 'subroutine'
-                elif self.symbol_tables['class'].index_of(token) >= 0:
-                    level = 'class'
-                else:
-                    level = None
-
-                if level:
-                    kind = self.symbol_tables[level].kind_of(token).name.lower()
-                    self.output.write(f'<category> {kind} </category>\n')
-                    self.output.write(
-                        f'<index> {self.symbol_tables[level].index_of(token)} </index>\n'
-                    )
-
-            self.output.write(f'<usage> {"declared" if declaration else "used" } </usage>\n')
-            self.output.write('</identifier>\n')
-        else:
-            self.output.write(f'<{token_type}> {token} </{token_type}>\n')
-
-        self.input.advance()
 
     def compile_class(self):
         """Compile a complete class"""
@@ -199,7 +155,7 @@ class CompilationEngine:
                 arg_type,
                 VariableKind.ARG
             )  # populate symbol table
-            self._eat(self.input.current_token, declaration=True)  # varName
+            self._eat(self.input.current_token)  # varName
 
             # the presence of a comma means that there are more parameters
             while self.input.current_token == ',':
@@ -211,7 +167,7 @@ class CompilationEngine:
                     arg_type,
                     VariableKind.ARG
                 )  # populate symbol table
-                self._eat(self.input.current_token, declaration=True)  # varName
+                self._eat(self.input.current_token)  # varName
 
     def compile_subroutine_body(self):
         """Compile a subroutine's body"""
@@ -250,7 +206,7 @@ class CompilationEngine:
             VariableKind.VAR
         )  # populate symbol table
         self.subroutine_num_vars += 1  # increment local variable counter
-        self._eat(self.input.current_token, declaration=True)  # varName
+        self._eat(self.input.current_token)  # varName
 
         # check for and compile more variable names
         while self.input.current_token == ',':
@@ -261,7 +217,7 @@ class CompilationEngine:
                 VariableKind.VAR
             )  # populate symbol table
             self.subroutine_num_vars += 1  # increment local variable counter
-            self._eat(self.input.current_token, declaration=True)  # varName
+            self._eat(self.input.current_token)  # varName
 
         self._eat(';')
 
