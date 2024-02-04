@@ -462,10 +462,14 @@ class CompilationEngine:
                     self.output.write_push(Segment.THAT, 0)  # get value of array element
                     self._eat(']')
 
-            elif self.input.current_token == '(':  # subroutineCall
+                if self.input.current_token == '.':  # subroutine (method on varName object)
+                    self._eat('.')
+                    self._compile_subroutine_call(call_on=term)
+
+            elif self.input.current_token == '(':  # subroutineCall (method on current object)
                 self._compile_subroutine_call(call_on=None, override_name=term)
 
-            elif self.input.current_token == '.':  # subroutineCall
+            elif self.input.current_token == '.':  # subroutineCall (function)
                 self._eat('.')
                 self._compile_subroutine_call(call_on=term)
 
