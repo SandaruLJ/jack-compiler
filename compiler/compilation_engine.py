@@ -176,7 +176,7 @@ class CompilationEngine:
         self.subroutine = f'{self.classname}.{self.input.current_token}'
         self._eat(self.input.current_token)  # subroutineName
         self._eat('(')
-        
+
         # if compiling a method, add 'this' reference to symbol table
         if self.subroutine_type == 'method':
             self.symbol_tables['subroutine'].define(
@@ -184,7 +184,7 @@ class CompilationEngine:
                 self.classname,
                 VariableKind.ARG
             )
-        
+
         self.compile_parameter_list()
         self._eat(')')
         self.compile_subroutine_body()
@@ -218,10 +218,10 @@ class CompilationEngine:
         self._eat('{')
         while self.input.current_token == 'var':
             self.compile_var_dec()
-        
+
         # generate function command after variable declarations are compiled
         self.output.write_function(self.subroutine, self.subroutine_num_vars)
-        
+
         # generate object instantiation code if the subroutine is a constructor
         if self.subroutine_type == 'constructor':
             # get number of field variables in class to determine object size
@@ -235,7 +235,7 @@ class CompilationEngine:
         elif self.subroutine_type == 'method':
             self.output.write_push(Segment.ARGUMENT, 0)
             self.output.write_pop(Segment.POINTER, 0)
-        
+
         self.compile_statements()
         self._eat('}')
 
@@ -311,7 +311,7 @@ class CompilationEngine:
             self._eat('=')
             self.compile_expression()
             self.output.write_pop(segment, index)
-        
+
         self._eat(';')
 
     def compile_if(self):
@@ -378,7 +378,7 @@ class CompilationEngine:
     def compile_expression(self):
         """Compile an expression"""
         self.compile_term()  # term
-        
+
         # (op term)
         while self.input.current_token in ('+', '-', '*', '/', '&', '|', '<', '>', '='):
             op = self.input.current_token  # remember operation to be performed postfix
@@ -429,7 +429,7 @@ class CompilationEngine:
 
             if term.isdecimal():  # integerConstant
                 self.output.write_push(Segment.CONSTANT, term)
-            
+
             elif term.startswith('"'):  # stringConstant
                 # pass string length as an argument to String constructor
                 str_without_quotes = term[1:-1]
@@ -438,7 +438,7 @@ class CompilationEngine:
                 for char in str_without_quotes:  # initialize String with each character
                     self.output.write_push(Segment.CONSTANT, ord(char))
                     self.output.write_call('String.appendChar', 2)
-            
+
             elif keywords.get(term):  # keywordConstant
                 if term in ('false', 'null'):
                     self.output.write_push(Segment.CONSTANT, 0)
@@ -447,12 +447,12 @@ class CompilationEngine:
                     self.output.write_arithmetic(ArithmeticCommand.NEG)
                 elif term == 'this':
                     self.output.write_push(Segment.POINTER, 0)
-            
+
             elif table:= self._symbol_table_lookup(term):  # varName
                 segment = self._determine_var_segment(self.symbol_tables[table].kind_of(term))
                 index = self.symbol_tables[table].index_of(term)
                 self.output.write_push(segment, index)
-                
+
                 if self.input.current_token == '[':  # varName'['expression']'
                     self._eat('[')
                     self.compile_expression()  # index value
@@ -461,10 +461,10 @@ class CompilationEngine:
                     self.output.write_pop(Segment.POINTER, 1)
                     self.output.write_push(Segment.THAT, 0)  # get value of array element
                     self._eat(']')
-            
+
             elif self.input.current_token == '(':  # subroutineCall
                 self._compile_subroutine_call(call_on=None, override_name=term)
-            
+
             elif self.input.current_token == '.':  # subroutineCall
                 self._eat('.')
                 self._compile_subroutine_call(call_on=term)
