@@ -294,14 +294,24 @@ class CompilationEngine:
         segment = self._determine_var_segment(self.symbol_tables[table].kind_of(variable))
         index = self.symbol_tables[table].index_of(variable)
 
+        # check if array element assignment or variable assignment
         if self.input.current_token == '[':  # varName'['expression']'
             self._eat('[')
-            self.compile_expression()
+            self.output.write_push(segment, index)  # base address of array
+            self.compile_expression()  # index value
+            self.output.write_arithmetic(ArithmeticCommand.ADD)  # target address
             self._eat(']')
-
-        self._eat('=')
-        self.compile_expression()
-        self.output.write_pop(segment, index)
+            self._eat('=')
+            self.compile_expression()
+            self.output.write_pop(Segment.TEMP, 0)  # backup expression value
+            self.output.write_pop(Segment.POINTER, 1)  # align target address with 'THAT' segment
+            self.output.write_push(Segment.TEMP, 0)
+            self.output.write_pop(Segment.THAT, 0)  # assign expression value to target address
+        else:  # variable assignment
+            self._eat('=')
+            self.compile_expression()
+            self.output.write_pop(segment, index)
+        
         self._eat(';')
 
     def compile_if(self):
@@ -419,6 +429,7 @@ class CompilationEngine:
 
             if term.isdecimal():  # integerConstant
                 self.output.write_push(Segment.CONSTANT, term)
+            
             elif term.startswith('"'):  # stringConstant
                 # pass string length as an argument to String constructor
                 str_without_quotes = term[1:-1]
@@ -427,6 +438,7 @@ class CompilationEngine:
                 for char in str_without_quotes:  # initialize String with each character
                     self.output.write_push(Segment.CONSTANT, ord(char))
                     self.output.write_call('String.appendChar', 2)
+            
             elif keywords.get(term):  # keywordConstant
                 if term in ('false', 'null'):
                     self.output.write_push(Segment.CONSTANT, 0)
@@ -435,19 +447,27 @@ class CompilationEngine:
                     self.output.write_arithmetic(ArithmeticCommand.NEG)
                 elif term == 'this':
                     self.output.write_push(Segment.POINTER, 0)
+            
             elif table:= self._symbol_table_lookup(term):  # varName
                 segment = self._determine_var_segment(self.symbol_tables[table].kind_of(term))
                 index = self.symbol_tables[table].index_of(term)
                 self.output.write_push(segment, index)
+                
+                if self.input.current_token == '[':  # varName'['expression']'
+                    self._eat('[')
+                    self.compile_expression()  # index value
+                    self.output.write_arithmetic(ArithmeticCommand.ADD)  # get target address
+                    # align target address with 'THAT' segment
+                    self.output.write_pop(Segment.POINTER, 1)
+                    self.output.write_push(Segment.THAT, 0)  # get value of array element
+                    self._eat(']')
+            
             elif self.input.current_token == '(':  # subroutineCall
                 self._compile_subroutine_call(call_on=None, override_name=term)
+            
             elif self.input.current_token == '.':  # subroutineCall
                 self._eat('.')
                 self._compile_subroutine_call(call_on=term)
-            elif self.input.current_token == '[':  # varName'['expression']'
-                self._eat('[')
-                self.compile_expression()
-                self._eat(']')
 
     def compile_expression_list(self):
         """Compile an (possibly empty) comma-separated list of expressions.
