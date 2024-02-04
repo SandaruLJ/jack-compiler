@@ -419,6 +419,14 @@ class CompilationEngine:
 
             if term.isdecimal():  # integerConstant
                 self.output.write_push(Segment.CONSTANT, term)
+            elif term.startswith('"'):  # stringConstant
+                # pass string length as an argument to String constructor
+                str_without_quotes = term[1:-1]
+                self.output.write_push(Segment.CONSTANT, len(str_without_quotes))
+                self.output.write_call('String.new', 1)
+                for char in str_without_quotes:  # initialize String with each character
+                    self.output.write_push(Segment.CONSTANT, ord(char))
+                    self.output.write_call('String.appendChar', 2)
             elif keywords.get(term):  # keywordConstant
                 if term in ('false', 'null'):
                     self.output.write_push(Segment.CONSTANT, 0)
